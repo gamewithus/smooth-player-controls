@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Photo³ — Modern 3D Gallery</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,600;1,600&display=swap" rel="stylesheet">
+<style>
+:root {
+    --bg: #0f0e14;
+    --wall: #f7f7f8;
+    --accent: #111;
+    --text: #111;
+    --muted: #666;
+    --glass: rgba(255, 255, 255, 0.78);
+    --shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+    --radius: 16px;
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    min-height: 100vh;
+    overflow: hidden;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: #fff;
+    user-select: none;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* =========================
+   TITLE
+========================= */
+.title {
+    position: fixed;
+    top: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(26px, 4.5vw, 48px);
+    font-weight: 600;
+    font-style: italic;
+    letter-spacing: 1px;
+    white-space: nowrap;
+    background: linear-gradient(135deg, #fff 0%, #c8c8d0 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    opacity: 0.95;
+}
+
+/* =========================
+   3D SCENE
+========================= */
+.scene {
+    width: 100vw;
+    height: 100vh;
+    perspective: 1400px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    touch-action: none;
+}
+
+.scene:active, .scene.is-dragging {
+    cursor: grabbing;
+}
+
+/* =========================
+   ROOM
+========================= */
+.room {
+    width: 880px;
+    height: 580px;
+    position: relative;
+    transform-style: preserve-3d;
+    transform: rotateX(-8deg) rotateY(22deg);
+    transition: transform 0.12s linear;
+    will-change: transform;
+}
+
+.room.smooth {
+    transition: transform 0.55s var(--ease);
+}
+
+/* =========================
+   WALLS
+========================= */
+.wall {
+    position: absolute;
+    background: var(--wall);
+    overflow: hidden;
+    box-shadow: 0 0 60px rgba(0, 0, 0, 0.28);
+    transform-style: preserve-3d;
+}
+
+.back {
+    width: 880px;
+    height: 580px;
+    left: 0;
+    top: 0;
+    transform: translateZ(-440px);
+}
+
+.left {
+    width: 880px;
+    height: 580px;
+    left: -440px;
+    top: 0;
+    transform: rotateY(90deg);
+}
+
+.right {
+    width: 880px;
+    height: 580px;
+    left: 440px;
+    top: 0;
+    transform: rotateY(-90deg);
+}
+
+.ceiling {
+    width: 880px;
+    height: 880px;
+    left: 0;
+    top: -440px;
+    transform: rotateX(90deg);
+    background: #f0f0f2;
+}
+
+.floor {
+    width: 880px;
+    height: 880px;
+    left: 0;
+    top: 580px;
+    transform: rotateX(-90deg);
+    background:
+        linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px),
+        linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px);
+    background-size: 70px 70px;
+    background-color: #fafafa;
+}
+
+/* =========================
+   IMAGE GRID
+========================= */
+.image-grid {
+    width: 100%;
+    height: 100%;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    grid-auto-rows: 112px;
+    gap: 10px;
+    padding: 16px;
+}
+
+.ceiling .image-grid {
+    grid-template-columns: repeat(5, 1fr);
+    grid-auto-rows: 140px;
+    padding: 24px;
+}
+
+.photo-wrap {
+    position: relative;
+    overflow: hidden;
+    border-radius: 6px;
+    background: #e8e8ea;
+    cursor: pointer;
+    transform-style: preserve-3d;
+    transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
+}
+
+.photo {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    border-radius: 6px;
+    transition: transform 0.4s var(--ease), filter 0.4s var(--ease), opacity 0.5s ease;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+    opacity: 0;
+}
+
+.photo.loaded {
+    opacity: 1;
+}
+
+.photo-wrap:hover .photo {
+    transform: translateZ(48px) scale(1.07);
+    filter: brightness(1.06) contrast(1.03);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+    z-index: 20;
+}
+
+.photo-wrap:hover {
+    z-index: 20;
+}
+
+.caption {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 10px 12px 8px;
+    background: linear-gradient(to top, rgba(0,0,0,0.75), transparent);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: all 0.3s var(--ease);
+    pointer-events: none;
+    border-radius: 0 0 6px 6px;
+}
+
+.photo-wrap:hover .caption {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* =========================
+   CENTER CONTENT
+========================= */
+.center-content {
+    position: absolute;
+    width: 340px;
+    height: 210px;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%) translateZ(28px);
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    background: var(--glass);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-radius: 22px;
+    box-shadow: var(--shadow);
+    color: var(--text);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+.center-content h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 40px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    letter-spacing: -0.5px;
+}
+
+.center-content p {
+    color: var(--muted);
+    font-size: 14px;
+    margin-bottom: 22px;
+    font-weight: 400;
+}
+
+.open-btn {
+    border: none;
+    padding: 13px 32px;
+    border-radius: 40px;
+    background: #111;
+    color: white;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.3s var(--ease);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.open-btn:hover {
+    transform: scale(1.06);
+    background: #222;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+/* =========================
+   CONTROLS
+========================= */
+.controls {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 200;
+    display: flex;
+    gap: 8px;
+    padding: 8px 10px;
+    background: rgba(15, 14, 20, 0.72);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-radius: 50px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+}
+
+.controls button {
+    width: 46px;
+    height: 46px;
+    border: none;
+    background: rgba(255, 255, 255, 0.08);
+    color: white;
+    border-radius: 50%;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.25s var(--ease);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.controls button:hover {
+    background: rgba(255, 255, 255, 0.95);
+    color: #111;
+    transform: scale(1.08);
+}
+
+.controls button.active {
+    background: #fff;
+    color: #111;
+}
+
+.controls button svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* =========================
+   FULLSCREEN VIEWER
+========================= */
+.viewer {
+    position: fixed;
+    inset: 0;
+    background: rgba(8, 7, 12, 0.94);
+    z-index: 999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.35s var(--ease), visibility 0.35s;
+    backdrop-filter: blur(8px);
+}
+
+.viewer.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.viewer-inner {
+    position: relative;
+    max-width: 92vw;
+    max-height: 86vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.viewer img {
+    max-width: 92vw;
+    max-height: 82vh;
+    object-fit: contain;
+    border-radius: 12px;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+    transform: scale(0.94);
+    opacity: 0;
+    transition: transform 0.4s var(--ease), opacity 0.4s var(--ease);
+}
+
+.viewer.active img {
+    transform: scale(1);
+    opacity: 1;
+}
+
+.viewer-info {
+    position: absolute;
+    bottom: -42px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.65);
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+.close-btn, .nav-btn {
+    position: absolute;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.25s;
+    backdrop-filter: blur(8px);
+}
+
+.close-btn { top: 24px; right: 28px; width: 48px; height: 48px; }
+.nav-btn { top: 50%; transform: translateY(-50%); width: 52px; height: 52px; }
+.nav-btn.prev { left: 24px; }
+.nav-btn.next { right: 24px; }
+
+.close-btn:hover, .nav-btn:hover { background: #fff; color: #111; transform: scale(1.08); }
+.nav-btn:hover { transform: translateY(-50%) scale(1.08); }
+
+.close-btn svg, .nav-btn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2.2; }
+
+/* =========================
+   HINT
+========================= */
+.hint {
+    position: fixed;
+    bottom: 92px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.35);
+    letter-spacing: 0.4px;
+    z-index: 50;
+    pointer-events: none;
+    transition: opacity 0.6s;
+}
+
+.hint.hide { opacity: 0; }
+
+/* UPGRADE STYLES */
+:root { --panel: rgba(12,12,18,.68); }
+
+body::before {
+    content: "";
+    position: fixed;
+    inset: -20%;
+    z-index: -3;
+    background: radial-gradient(circle at 20% 20%,rgba(111,92,255,.24),transparent 28%),radial-gradient(circle at 80% 30%,rgba(0,210,255,.18),transparent 25%),radial-gradient(circle at 50% 90%,rgba(255,80,180,.14),transparent 30%),#07070b;
+    animation: aurora 12s ease-in-out infinite alternate;
+}
+
+@keyframes aurora { to { transform: scale(1.08) rotate(2deg); filter: hue-rotate(20deg); } }
+
+/* 3D ফ্ল্যাট হওয়া বন্ধ করার জন্য ট্রান্সফর্মেটিভ স্টাইল ঠিক করা হয়েছে */
+.room.music-pulse {
+    /* filter বাদ দেওয়া হয়েছে ৩ডি ঠিক রাখার জন্য */
+}
+
+.badge {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    padding: 6px 10px;
+    border-radius: 99px;
+    background: rgba(10,10,14,.7);
+    color: #fff;
+    font-size: 10px;
+    letter-spacing: 1px;
+    backdrop-filter: blur(10px);
+    z-index: 60;
+}
+
+.music-card {
+    position: fixed;
+    left: 24px;
+    bottom: 24px;
+    z-index: 300;
+    width: min(360px, calc(100vw - 48px));
+    padding: 14px;
+    border: 1px solid rgba(255,255,255,.14);
+    border-radius: 22px;
+    background: var(--panel);
+    backdrop-filter: blur(20px);
+    box-shadow: 0 20px 60px rgba(0,0,0,.42);
+}
+
+.music-top { display: flex; align-items: center; gap: 12px; }
+.music-disc {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: conic-gradient(#fff,#777,#fff,#333,#fff);
+    box-shadow: 0 0 0 5px rgba(255,255,255,.05);
+    animation: spin 4s linear infinite; animation-play-state: paused; flex: none;
+}
+.music-card.playing .music-disc { animation-play-state: running; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.music-meta { min-width: 0; flex: 1; }
+.music-name { font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.music-sub { font-size: 10px; color: rgba(255,255,255,.48); margin-top: 3px; }
+.music-actions { display: flex; gap: 6px; }
+.music-actions button { border: 0; background: rgba(255,255,255,.08); color: #fff; width: 34px; height: 34px; border-radius: 50%; cursor: pointer; }
+.music-actions button:hover { background: rgba(255,255,255,.18); }
+.music-progress { width: 100%; margin-top: 10px; }
+.music-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.music-row input[type=range] { flex: 1; }
+.time { font-size: 9px; color: rgba(255,255,255,.45); min-width: 34px; text-align: center; }
+.music-source { display: flex; align-items: center; gap: 7px; margin-top: 9px; font-size: 9px; color: rgba(255,255,255,.45); }
+.music-source input { width: 100%; font-size: 9px; }
+
+.visualizer {
+    position: fixed; left: 50%; bottom: 108px; transform: translateX(-50%);
+    z-index: 220; display: flex; align-items: flex-end; gap: 3px; height: 32px;
+    pointer-events: none; opacity: .75;
+}
+.bar {
+    width: 3px; height: 8px; border-radius: 4px; background: #fff;
+    box-shadow: 0 0 10px rgba(255,255,255,.7); transition: height 0.1s ease;
+}
+
+.viewer-toolbar { position: absolute; right: 20px; bottom: 20px; display: flex; gap: 8px; }
+.viewer-toolbar button { border: 0; background: rgba(255,255,255,.12); color: #fff; border-radius: 99px; padding: 99px; padding: 9px 12px; cursor: pointer; backdrop-filter: blur(10px); }
+
+.toast {
+    position: fixed; top: 78px; left: 50%; transform: translate(-50%,-12px); opacity: 0;
+    z-index: 1200; padding: 10px 14px; border-radius: 99px; background: rgba(10,10,14,.78);
+    border: 1px solid rgba(255,255,255,.12); backdrop-filter: blur(14px); font-size: 11px;
+    transition: .35s ease; pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translate(-50%,0); }
+</style>
+</head>
+<body>
+
+<h1 class="title">Photo³ Gallery</h1>
+<div class="hint" id="hint">Drag to explore · Click photo to open</div>
+
+<div class="scene" id="scene">
+    <div class="room" id="room">
+        <div class="wall back">
+            <div class="image-grid" id="backGrid"></div>
+            <div class="center-content">
+                <h2>Photo³</h2>
+                <p>A modern 3D photo experience</p>
+                <button class="open-btn" id="openBtn">
+                    <span>EXPLORE</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </button>
+            </div>
+        </div>
+        <div class="wall left"><div class="image-grid" id="leftGrid"></div></div>
+        <div class="wall right"><div class="image-grid" id="rightGrid"></div></div>
+        <div class="wall ceiling"><div class="image-grid" id="ceilingGrid"></div></div>
+        <div class="wall floor"></div>
+    </div>
+</div>
+
+<div class="badge">3D • MUSIC • BEAT SYNC</div>
+
+<section class="music-card" id="musicCard" aria-label="Music player">
+  <div class="music-top">
+    <div class="music-disc"></div>
+    <div class="music-meta">
+        <div class="music-name" id="musicName">Your vibe • Local track</div>
+        <div class="music-sub">Add your audio file to start Beat-Sync</div>
+    </div>
+    <div class="music-actions">
+        <button id="musicPlay" title="Play/Pause">▶</button>
+        <button id="musicMute" title="Mute">🔊</button>
+    </div>
+  </div>
+  <audio id="audio" preload="metadata" crossorigin="anonymous"></audio>
+  <input class="music-progress" id="progress" type="range" min="0" max="100" value="0">
+  <div class="music-row">
+      <span class="time" id="currentTime">0:00</span>
+      <input id="volume" type="range" min="0" max="1" step="0.01" value="0.75">
+      <span class="time" id="duration">0:00</span>
+  </div>
+  <div class="music-source">
+      <span>🎵</span>
+      <input id="audioFile" type="file" accept="audio/*">
+  </div>
+</section>
+
+<div class="visualizer" id="visualizer">
+    <i class="bar"></i><i class="bar"></i><i class="bar"></i><i class="bar"></i>
+    <i class="bar"></i><i class="bar"></i><i class="bar"></i><i class="bar"></i>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="controls">
+    <button id="leftBtn" title="Rotate Left (←)"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <button id="resetBtn" title="Reset View"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
+    <button id="autoBtn" title="Auto Rotate"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg></button>
+    <button id="rightBtn" title="Rotate Right (→)"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
+</div>
+
+<div class="viewer" id="viewer">
+    <button class="close-btn" id="closeBtn"><svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    <button class="nav-btn prev" id="prevBtn"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <button class="nav-btn next" id="nextBtn"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
+    <div class="viewer-inner">
+        <img id="viewerImg" alt="Full view">
+        <div class="viewer-info" id="viewerInfo"></div>
+        <div class="viewer-toolbar">
+            <button id="shareBtn">↗ Share</button>
+            <button id="fullBtn">⛶ Fullscreen</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const imageSets = {
+    back: [
+        { id: 1015, title: "Mountain Lake" }, { id: 1016, title: "Forest Path" },
+        { id: 1018, title: "City Lights" }, { id: 1020, title: "Desert Dunes" },
+        { id: 1024, title: "Ocean Wave" }, { id: 1025, title: "Autumn Road" },
+        { id: 1035, title: "Snow Peak" }, { id: 1039, title: "Golden Field" },
+        { id: 1040, title: "Misty Hills" }, { id: 1041, title: "River Bend" },
+        { id: 1043, title: "Canyon View" }, { id: 1044, title: "Sunset Cliff" },
+        { id: 1050, title: "Green Valley" }, { id: 1069, title: "Stone Bridge" },
+        { id: 1074, title: "Blue Hour" }, { id: 1080, title: "Quiet Shore" },
+        { id: 1084, title: "Wild Flowers" }, { id: 1081, title: "Foggy Woods" },
+        { id: 1082, title: "Rocky Coast" }, { id: 1083, title: "Open Sky" }
+    ],
+    left: [
+        { id: 201, title: "Urban Night" }, { id: 202, title: "Coffee Shop" },
+        { id: 203, title: "Street Art" }, { id: 204, title: "Old Town" },
+        { id: 206, title: "Neon Signs" }, { id: 208, title: "Market Day" },
+        { id: 209, title: "Bridge Walk" }, { id: 210, title: "Rainy Street" },
+        { id: 211, title: "Cafe Window" }, { id: 212, title: "Night Alley" }
+    ],
+    right: [
+        { id: 301, title: "Portrait Soft" }, { id: 302, title: "Golden Hour" },
+        { id: 304, title: "Candid Moment" }, { id: 305, title: "Street Style" },
+        { id: 306, title: "Window Light" }, { id: 307, title: "Quiet Gaze" },
+        { id: 308, title: "Summer Day" }, { id: 309, title: "City Life" },
+        { id: 310, title: "Evening Walk" }, { id: 312, title: "Soft Shadow" }
+    ],
+    ceiling: [
+        { id: 401, title: "Abstract Light" }, { id: 403, title: "Texture Study" },
+        { id: 404, title: "Color Field" }, { id: 405, title: "Minimal Form" },
+        { id: 408, title: "Soft Geometry" }
+    ]
+};
+
+const room = document.getElementById("room");
+const scene = document.getElementById("scene");
+const viewer = document.getElementById("viewer");
+const viewerImg = document.getElementById("viewerImg");
+const viewerInfo = document.getElementById("viewerInfo");
+const hint = document.getElementById("hint");
+
+let rotateX = -8, rotateY = 22;
+let dragging = false, startX = 0, startY = 0;
+let autoRotate = false, autoTimer = null;
+let allPhotos = [], currentIndex = 0, hintHidden = false;
+let photoElements = [];
+
+function createPhoto(item) {
+    const wrap = document.createElement("div");
+    wrap.className = "photo-wrap";
+
+    const img = document.createElement("img");
+    img.className = "photo";
+    img.loading = "lazy";
+    img.alt = item.title;
+    img.src = `https://picsum.photos/id/${item.id}/500/350`;
+
+    img.onload = () => img.classList.add("loaded");
+    img.onerror = () => {
+        img.src = `https://picsum.photos/seed/${item.id}/500/350`;
+        img.onload = () => img.classList.add("loaded");
+    };
+
+    const caption = document.createElement("div");
+    caption.className = "caption";
+    caption.textContent = item.title;
+
+    wrap.appendChild(img);
+    wrap.appendChild(caption);
+
+    wrap.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openViewer(item);
+    });
+
+    allPhotos.push(item);
+    photoElements.push(wrap);
+    return wrap;
+}
+
+function buildGrids() {
+    const grids = {
+        back: document.getElementById("backGrid"),
+        left: document.getElementById("leftGrid"),
+        right: document.getElementById("rightGrid"),
+        ceiling: document.getElementById("ceilingGrid")
+    };
+
+    Object.keys(imageSets).forEach(key => {
+        imageSets[key].forEach(item => {
+            grids[key].appendChild(createPhoto(item));
+        });
+    });
+}
+
+function updateRoom(smooth = false) {
+    if (smooth) room.classList.add("smooth");
+    else room.classList.remove("smooth");
+    room.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+}
+
+function startDrag(x, y) {
+    dragging = true; startX = x; startY = y;
+    scene.classList.add("is-dragging");
+    stopAuto(); hideHint();
+}
+
+function moveDrag(x, y) {
+    if (!dragging) return;
+    const dx = x - startX, dy = y - startY;
+    rotateY += dx * 0.22;
+    rotateX -= dy * 0.14;
+    rotateX = Math.max(-38, Math.min(32, rotateX));
+    startX = x; startY = y;
+    updateRoom();
+}
+
+function endDrag() {
+    dragging = false;
+    scene.classList.remove("is-dragging");
+}
+
+scene.addEventListener("mousedown", e => { if (e.button === 0) startDrag(e.clientX, e.clientY); });
+window.addEventListener("mousemove", e => moveDrag(e.clientX, e.clientY));
+window.addEventListener("mouseup", endDrag);
+
+scene.addEventListener("touchstart", e => startDrag(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+scene.addEventListener("touchmove", e => moveDrag(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+scene.addEventListener("touchend", endDrag);
+
+document.getElementById("leftBtn").addEventListener("click", () => { stopAuto(); rotateY -= 30; updateRoom(true); hideHint(); });
+document.getElementById("rightBtn").addEventListener("click", () => { stopAuto(); rotateY += 30; updateRoom(true); hideHint(); });
+document.getElementById("resetBtn").addEventListener("click", () => { stopAuto(); rotateX = -8; rotateY = 22; updateRoom(true); });
+document.getElementById("openBtn").addEventListener("click", e => { e.stopPropagation(); stopAuto(); rotateX = 0; rotateY = 0; updateRoom(true); hideHint(); });
+
+const autoBtn = document.getElementById("autoBtn");
+function startAuto() {
+    autoRotate = true; autoBtn.classList.add("active");
+    autoTimer = setInterval(() => { rotateY += 0.35; updateRoom(); }, 30);
+}
+function stopAuto() { autoRotate = false; autoBtn.classList.remove("active"); clearInterval(autoTimer); }
+autoBtn.addEventListener("click", () => { if (autoRotate) stopAuto(); else startAuto(); hideHint(); });
+
+function openViewer(item) {
+    currentIndex = allPhotos.findIndex(p => p.id === item.id);
+    showViewerImage();
+    viewer.classList.add("active");
+    stopAuto();
+}
+
+function showViewerImage() {
+    const item = allPhotos[currentIndex];
+    viewerImg.style.opacity = "0";
+    viewerImg.style.transform = "scale(0.94)";
+    const src = `https://picsum.photos/id/${item.id}/1200/800`;
+    const temp = new Image();
+    temp.src = src;
+    temp.onload = () => {
+        viewerImg.src = src; viewerImg.alt = item.title;
+        requestAnimationFrame(() => { viewerImg.style.opacity = "1"; viewerImg.style.transform = "scale(1)"; });
+    };
+    temp.onerror = () => {
+        viewerImg.src = `https://picsum.photos/seed/${item.id}/1200/800`;
+        viewerImg.alt = item.title;
+        viewerImg.style.opacity = "1"; viewerImg.style.transform = "scale(1)";
+    };
+    viewerInfo.textContent = `${item.title}  ·  ${currentIndex + 1} / ${allPhotos.length}`;
+}
+
+function closeViewer() { viewer.classList.remove("active"); }
+document.getElementById("closeBtn").addEventListener("click", closeViewer);
+viewer.addEventListener("click", e => { if (e.target === viewer) closeViewer(); });
+document.getElementById("prevBtn").addEventListener("click", e => { e.stopPropagation(); currentIndex = (currentIndex - 1 + allPhotos.length) % allPhotos.length; showViewerImage(); });
+document.getElementById("nextBtn").addEventListener("click", e => { e.stopPropagation(); currentIndex = (currentIndex + 1) % allPhotos.length; showViewerImage(); });
+
+document.addEventListener("keydown", e => {
+    if (viewer.classList.contains("active")) {
+        if (e.key === "Escape") closeViewer();
+        if (e.key === "ArrowLeft") { currentIndex = (currentIndex - 1 + allPhotos.length) % allPhotos.length; showViewerImage(); }
+        if (e.key === "ArrowRight") { currentIndex = (currentIndex + 1) % allPhotos.length; showViewerImage(); }
+        return;
+    }
+    if (e.key === "ArrowLeft") { stopAuto(); rotateY -= 25; updateRoom(true); }
+    if (e.key === "ArrowRight") { stopAuto(); rotateY += 25; updateRoom(true); }
+    if (e.key === "Escape" || e.key === "r" || e.key === "R") { stopAuto(); rotateX = -8; rotateY = 22; updateRoom(true); }
+});
+
+function hideHint() { if (hintHidden) return; hintHidden = true; hint.classList.add("hide"); }
+
+/* =========================
+   MUSIC + BEAT SYNC AUDIO API
+========================= */
+const audio = document.getElementById('audio');
+const musicCard = document.getElementById('musicCard');
+const musicPlay = document.getElementById('musicPlay');
+const musicMute = document.getElementById('musicMute');
+const progress = document.getElementById('progress');
+const volume = document.getElementById('volume');
+const currentTimeEl = document.getElementById('currentTime');
+const durationEl = document.getElementById('duration');
+const audioFile = document.getElementById('audioFile');
+const visualizer = document.getElementById('visualizer');
+const bars = visualizer.querySelectorAll('.bar');
+const musicName = document.getElementById('musicName');
+const toast = document.getElementById('toast');
+
+let objectUrl = null;
+let audioCtx = null, analyser = null, source = null, dataArray = null;
+
+function fmt(t) { if (!Number.isFinite(t)) return '0:00'; const m = Math.floor(t / 60), s = Math.floor(t % 60).toString().padStart(2, '0'); return `${m}:${s}`; }
+function showToast(msg) { toast.textContent = msg; toast.classList.add('show'); clearTimeout(showToast.t); showToast.t = setTimeout(() => toast.classList.remove('show'), 1800); }
+
+function initAudioContext() {
+    if (audioCtx) return;
+    try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 64;
+        source = audioCtx.createMediaElementSource(audio);
+        source.connect(analyser);
+        analyser.connect(audioCtx.destination);
+        dataArray = new Uint8Array(analyser.frequencyBinCount);
+    } catch (e) {
+        console.log("Audio Context initialized");
+    }
+}
+
+function renderBeatSync() {
+    if (!audio.paused && analyser) {
+        analyser.getByteFrequencyData(dataArray);
+
+        // Visualizer Bars Update
+        for (let i = 0; i < bars.length; i++) {
+            let val = dataArray[i] || 0;
+            let h = Math.max(4, (val / 255) * 28);
+            bars[i].style.height = `${h}px`;
+        }
+
+        // Bass Frequency Analysis (Beat Detection)
+        let bassSum = 0;
+        for (let i = 0; i < 4; i++) bassSum += dataArray[i];
+        let bassAvg = bassSum / 4; // 0 to 255
+
+        // Beat-based photo pop out (Z-axis offset based on audio)
+        let popDistance = (bassAvg / 255) * 35; // max 35px pop
+        photoElements.forEach((el, idx) => {
+            // Alternating pattern for dynamic feel
+            let multiplier = (idx % 2 === 0) ? 1 : 0.6;
+            let currentPop = popDistance * multiplier;
+            if (currentPop > 5) {
+                el.style.transform = `translateZ(${currentPop}px)`;
+                el.style.boxShadow = `0 ${currentPop}px ${currentPop * 1.5}px rgba(0,0,0,0.3)`;
+            } else {
+                el.style.transform = `translateZ(0px)`;
+                el.style.boxShadow = `none`;
+            }
+        });
+    } else {
+        photoElements.forEach(el => el.style.transform = `translateZ(0px)`);
+        bars.forEach(b => b.style.height = '4px');
+    }
+    requestAnimationFrame(renderBeatSync);
+}
+
+function setPlayingUI(on) {
+    musicCard.classList.toggle('playing', on);
+    musicPlay.textContent = on ? '❚❚' : '▶';
+}
+
+musicPlay.addEventListener('click', async () => {
+    if (!audio.src) { showToast('Choose an audio file first'); return; }
+    initAudioContext();
+    if (audioCtx && audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+    }
+    if (audio.paused) {
+        await audio.play();
+        setPlayingUI(true);
+    } else {
+        audio.pause();
+        setPlayingUI(false);
+    }
+});
+
+musicMute.addEventListener('click', () => { audio.muted = !audio.muted; musicMute.textContent = audio.muted ? '🔇' : '🔊'; });
+audio.addEventListener('timeupdate', () => { if (!audio.duration) return; progress.value = (audio.currentTime / audio.duration) * 100; currentTimeEl.textContent = fmt(audio.currentTime); });
+audio.addEventListener('loadedmetadata', () => { durationEl.textContent = fmt(audio.duration); });
+audio.addEventListener('ended', () => { setPlayingUI(false); progress.value = 0; });
+progress.addEventListener('input', () => { if (audio.duration) audio.currentTime = (progress.value / 100) * audio.duration; });
+volume.addEventListener('input', () => { audio.volume = volume.value; audio.muted = (volume.value == '0'); });
+
+audioFile.addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    objectUrl = URL.createObjectURL(f);
+    audio.src = objectUrl;
+    musicName.textContent = f.name;
+    initAudioContext();
+    audio.play().then(() => setPlayingUI(true)).catch(() => {});
+    showToast('Track loaded');
+});
+
+document.getElementById('shareBtn')?.addEventListener('click', async () => { try { await navigator.clipboard.writeText(location.href); showToast('Gallery link copied!'); } catch { showToast('Could not copy link'); } });
+document.getElementById('fullBtn')?.addEventListener('click', () => { if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch(() => {}); showToast('Entered Fullscreen'); } else { document.exitFullscreen().catch(() => {}); showToast('Exited Fullscreen'); } });
+
+/* INIT */
+buildGrids();
+updateRoom();
+requestAnimationFrame(renderBeatSync);
+</script>
+</body>
+</html>
